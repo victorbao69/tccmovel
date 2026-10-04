@@ -38,6 +38,9 @@ dependencies:
   # Usado para persistir dados localmente no aparelho (funcionamento offline)
   shared_preferences: ^2.3.2
 
+  # Usado para conversar com a API do site (Laravel)
+  http: ^1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

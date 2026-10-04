@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controle/pedido_controller.dart';
+import '../../modelo/api_service.dart';
 import '../../modelo/classes/pedido.dart';
 import '../cores_app.dart';
 
@@ -21,40 +22,34 @@ class _PedidoDetalhesScreenState extends State<PedidoDetalhesScreen> {
     _pedido = widget.pedido;
   }
 
-  Future<void> _alterarQuantidade(int produtoId, int novaQuantidade) async {
-    if (novaQuantidade <= 0) return;
-    await PedidoController.atualizarQuantidadeItem(
-      pedidoId: _pedido.id,
-      produtoId: produtoId,
-      novaQuantidade: novaQuantidade,
-    );
-    setState(() {
-      _pedido = _pedido.copiarComItens(_pedido.itens.map((item) {
-        return item.produtoId == produtoId ? item.copiarComQuantidade(novaQuantidade) : item;
-      }).toList());
-    });
-  }
-
-  Future<void> _excluirPedido() async {
+  Future<void> _cancelarPedido() async {
     final confirmou = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Excluir pedido?'),
-        content: Text('Deseja excluir o pedido #${_pedido.id}? Essa ação não pode ser desfeita.'),
+        title: const Text('Cancelar pedido?'),
+        content: Text('Deseja cancelar o pedido #${_pedido.id}? Essa ação não pode ser desfeita.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Voltar')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+            child: const Text('Cancelar pedido', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
-    if (confirmou == true) {
-      await PedidoController.excluirPedido(_pedido.id);
-      if (mounted) Navigator.pop(context);
+    if (confirmou != true) return;
+
+    try {
+      await PedidoController.cancelarPedido(_pedido.id);
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(erro.mensagem)),
+      );
+      return;
     }
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -67,7 +62,12 @@ class _PedidoDetalhesScreenState extends State<PedidoDetalhesScreen> {
         iconTheme: const IconThemeData(color: corBegeClaro),
         title: Text('Pedido #${_pedido.id}', style: const TextStyle(color: corBegeClaro, fontSize: 16)),
         actions: [
-          IconButton(icon: const Icon(Icons.delete_outline, color: corBegeClaro), onPressed: _excluirPedido),
+          if (_pedido.podeCancelar)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: corBegeClaro),
+              tooltip: 'Cancelar pedido',
+              onPressed: _cancelarPedido,
+            ),
         ],
       ),
       body: Column(
@@ -99,15 +99,7 @@ class _PedidoDetalhesScreenState extends State<PedidoDetalhesScreen> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, size: 20, color: corMarromEscuro),
-                        onPressed: () => _alterarQuantidade(item.produtoId, item.quantidade - 1),
-                      ),
-                      Text('${item.quantidade}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline, size: 20, color: corMarromEscuro),
-                        onPressed: () => _alterarQuantidade(item.produtoId, item.quantidade + 1),
-                      ),
+                      Text('${item.quantidade}x', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 );
@@ -120,7 +112,7 @@ class _PedidoDetalhesScreenState extends State<PedidoDetalhesScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total', style: TextStyle(fontSize: 14, color: corCinzaTexto)),
+                Text('Status: ${_pedido.statusFormatado}', style: const TextStyle(fontSize: 14, color: corCinzaTexto)),
                 Text('R\$ ${_pedido.total.toStringAsFixed(2).replaceAll('.', ',')}',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: corMarromEscuro)),
               ],

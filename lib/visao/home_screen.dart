@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../modelo/classes/item_pedido.dart';
+import '../modelo/local_storage_service.dart';
 import 'carrinho/carrinho_tab.dart';
 import 'cliente/perfil_tab.dart';
 import 'cores_app.dart';
@@ -7,8 +8,9 @@ import 'pedido/pedidos_tab.dart';
 import 'produto/catalogo_tab.dart';
 
 /// Tela principal após o login: bottom navigation trocando entre as
-/// 4 abas. O carrinho fica guardado aqui (em memória), pois é
-/// compartilhado entre a aba de Catálogo e a de Carrinho.
+/// 4 abas. O carrinho fica guardado aqui, pois é compartilhado entre a
+/// aba de Catálogo e a de Carrinho. A cada mudança ele também é salvo no
+/// aparelho, para não se perder quando o app for fechado.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -25,10 +27,31 @@ class _HomeScreenState extends State<HomeScreen> {
   // o pedido novo só apareceria depois de reiniciar o app).
   int _versaoPedidos = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _carregarCarrinho();
+  }
+
+  // Ao abrir o app, recupera o carrinho que ficou salvo no aparelho
+  Future<void> _carregarCarrinho() async {
+    final salvo = await LocalStorageService.carregarCarrinho();
+    if (!mounted) return;
+    setState(() {
+      _carrinho
+        ..clear()
+        ..addAll(salvo);
+    });
+  }
+
+  void _salvarCarrinho() {
+    LocalStorageService.salvarCarrinho(_carrinho);
+  }
+
   void _adicionarAoCarrinho(ItemPedido novoItem) {
     setState(() {
       final indexExistente =
-          _carrinho.indexWhere((i) => i.produtoId == novoItem.produtoId);
+      _carrinho.indexWhere((i) => i.produtoId == novoItem.produtoId);
       if (indexExistente != -1) {
         final atual = _carrinho[indexExistente];
         _carrinho[indexExistente] =
@@ -37,10 +60,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _carrinho.add(novoItem);
       }
     });
+    _salvarCarrinho();
   }
 
   void _removerDoCarrinho(int produtoId) {
     setState(() => _carrinho.removeWhere((i) => i.produtoId == produtoId));
+    _salvarCarrinho();
   }
 
   void _alterarQuantidadeCarrinho(int produtoId, int novaQuantidade) {
@@ -54,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _carrinho[index] = _carrinho[index].copiarComQuantidade(novaQuantidade);
       }
     });
+    _salvarCarrinho();
   }
 
   void _limparCarrinho() {
@@ -61,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _carrinho.clear();
       _versaoPedidos++;
     });
+    _salvarCarrinho();
   }
 
   @override

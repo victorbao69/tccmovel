@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controle/cliente_controller.dart';
+import '../../modelo/api_service.dart';
 import '../../modelo/classes/cliente.dart';
 import '../cores_app.dart';
 import 'cadastro_cliente_screen.dart';
@@ -85,7 +86,15 @@ class _PerfilTabState extends State<PerfilTab> {
     );
     if (confirmou != true) return;
 
-    await ClienteController.excluirConta(_cliente!.id);
+    try {
+      await ClienteController.excluirConta();
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(erro.mensagem)),
+      );
+      return;
+    }
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,

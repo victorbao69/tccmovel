@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../controle/cliente_controller.dart';
 import '../../controle/pedido_controller.dart';
+import '../../modelo/api_service.dart';
 import '../../modelo/classes/pedido.dart';
 import '../cores_app.dart';
 import 'pedido_detalhes_screen.dart';
@@ -15,6 +15,7 @@ class PedidosTab extends StatefulWidget {
 class _PedidosTabState extends State<PedidosTab> {
   List<Pedido> _pedidos = [];
   bool _carregando = true;
+  bool _offline = false;
 
   @override
   void initState() {
@@ -24,21 +25,25 @@ class _PedidosTabState extends State<PedidosTab> {
 
   Future<void> _carregarPedidos() async {
     setState(() => _carregando = true);
-    final cliente = await ClienteController.clienteLogado();
-    if (cliente == null) {
-      if (mounted) setState(() => _carregando = false);
-      return;
+    try {
+      final resultado = await PedidoController.listarPedidos();
+      if (!mounted) return;
+      setState(() {
+        _pedidos = resultado.lista;
+        _offline = resultado.offline;
+        _carregando = false;
+      });
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      setState(() => _carregando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(erro.mensagem)),
+      );
     }
-    final lista = await PedidoController.listarPedidosDoCliente(cliente.id);
-    if (!mounted) return;
-    setState(() {
-      _pedidos = lista;
-      _carregando = false;
-    });
   }
 
   String _formatarData(String isoData) {
-    final data = DateTime.tryParse(isoData);
+    final data = DateTime.tryParse(isoData)?.toLocal();
     if (data == null) return '';
     return '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year} às ${data.hour.toString().padLeft(2, '0')}:${data.minute.toString().padLeft(2, '0')}';
   }
@@ -53,7 +58,27 @@ class _PedidosTabState extends State<PedidosTab> {
         title: const Text('Meus pedidos', style: TextStyle(color: corBegeClaro, fontSize: 16)),
         centerTitle: true,
       ),
-      body: _carregando
+      body: Column(
+        children: [
+          if (_offline)
+            Container(
+              width: double.infinity,
+              color: corBegeClaro,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: const Text(
+                'Sem conexão: mostrando os últimos pedidos salvos no aparelho.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: corMarromEscuro),
+              ),
+            ),
+          Expanded(child: _conteudo()),
+        ],
+      ),
+    );
+  }
+
+  Widget _conteudo() {
+    return _carregando
           ? const Center(child: CircularProgressIndicator())
           : _pedidos.isEmpty
               ? const Center(
@@ -101,7 +126,7 @@ class _PedidosTabState extends State<PedidosTab> {
                                     const SizedBox(height: 4),
                                     Text(_formatarData(pedido.data), style: const TextStyle(fontSize: 12, color: corCinzaTexto)),
                                     const SizedBox(height: 2),
-                                    Text('${pedido.itens.length} item(ns)', style: const TextStyle(fontSize: 12, color: corCinzaTexto)),
+                                    Text('${pedido.itens.first.nomeProduto} · ${pedido.statusFormatado}', style: const TextStyle(fontSize: 12, color: corCinzaTexto), maxLines: 1, overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
@@ -117,7 +142,6 @@ class _PedidosTabState extends State<PedidosTab> {
                       );
                     },
                   ),
-                ),
-    );
+                );
   }
 }

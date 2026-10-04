@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../controle/produto_controller.dart';
+import '../../modelo/api_service.dart';
 import '../../modelo/classes/item_pedido.dart';
 import '../../modelo/classes/produto.dart';
 import '../cores_app.dart';
+import 'imagem_produto.dart';
 import 'produto_detalhes_screen.dart';
-import 'produto_form_screen.dart';
 
 class CatalogoTab extends StatefulWidget {
   final void Function(ItemPedido) onAdicionarAoCarrinho;
@@ -18,6 +19,7 @@ class CatalogoTab extends StatefulWidget {
 class _CatalogoTabState extends State<CatalogoTab> {
   List<Produto> _produtos = [];
   bool _carregando = true;
+  bool _offline = false;
 
   @override
   void initState() {
@@ -27,12 +29,21 @@ class _CatalogoTabState extends State<CatalogoTab> {
 
   Future<void> _carregarProdutos() async {
     setState(() => _carregando = true);
-    final lista = await ProdutoController.listar();
-    if (!mounted) return;
-    setState(() {
-      _produtos = lista;
-      _carregando = false;
-    });
+    try {
+      final resultado = await ProdutoController.listar();
+      if (!mounted) return;
+      setState(() {
+        _produtos = resultado.lista;
+        _offline = resultado.offline;
+        _carregando = false;
+      });
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      setState(() => _carregando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(erro.mensagem)),
+      );
+    }
   }
 
   Future<void> _abrirDetalhes(Produto produto) async {
@@ -59,14 +70,6 @@ class _CatalogoTabState extends State<CatalogoTab> {
     _carregarProdutos();
   }
 
-  Future<void> _abrirNovoProduto() async {
-    final salvou = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ProdutoFormScreen()),
-    );
-    if (salvou == true) _carregarProdutos();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,15 +79,18 @@ class _CatalogoTabState extends State<CatalogoTab> {
         elevation: 0,
         title: const Text('Catálogo', style: TextStyle(color: corBegeClaro, fontSize: 16)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: corBegeClaro),
-            tooltip: 'Novo produto',
-            onPressed: _abrirNovoProduto,
-          ),
+      ),
+      body: Column(
+        children: [
+          if (_offline) const _AvisoOffline(),
+          Expanded(child: _conteudo()),
         ],
       ),
-      body: _carregando
+    );
+  }
+
+  Widget _conteudo() {
+    return _carregando
           ? const Center(child: CircularProgressIndicator())
           : _produtos.isEmpty
               ? Center(
@@ -93,12 +99,12 @@ class _CatalogoTabState extends State<CatalogoTab> {
                     children: [
                       const Icon(Icons.inventory_2_outlined, size: 48, color: corCinzaBorda),
                       const SizedBox(height: 12),
-                      const Text('Nenhum produto no catálogo ainda', style: TextStyle(color: corCinzaTexto)),
+                      const Text('Nenhum produto disponível no momento', style: TextStyle(color: corCinzaTexto)),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _abrirNovoProduto,
+                        onPressed: _carregarProdutos,
                         style: ElevatedButton.styleFrom(backgroundColor: corMarromEscuro),
-                        child: const Text('Cadastrar produto', style: TextStyle(color: corBegeClaro)),
+                        child: const Text('Tentar de novo', style: TextStyle(color: corBegeClaro)),
                       ),
                     ],
                   ),
@@ -137,7 +143,25 @@ class _CatalogoTabState extends State<CatalogoTab> {
                       );
                     },
                   ),
-                ),
+                );
+  }
+}
+
+/// Faixa que aparece quando o catálogo está vindo da cópia salva no aparelho.
+class _AvisoOffline extends StatelessWidget {
+  const _AvisoOffline();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: corBegeClaro,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: const Text(
+        'Sem conexão: mostrando os últimos produtos salvos no aparelho.',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12, color: corMarromEscuro),
+      ),
     );
   }
 }
@@ -166,6 +190,8 @@ class _CartaoProduto extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ImagemProduto(url: produto.imagemUrl, altura: 90),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(

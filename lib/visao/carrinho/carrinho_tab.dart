@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../controle/cliente_controller.dart';
 import '../../controle/pedido_controller.dart';
+import '../../modelo/api_service.dart';
 import '../../modelo/classes/item_pedido.dart';
 import '../cores_app.dart';
 
@@ -29,14 +29,18 @@ class _CarrinhoTabState extends State<CarrinhoTab> {
 
   Future<void> _finalizarCompra() async {
     setState(() => _finalizando = true);
-    final cliente = await ClienteController.clienteLogado();
 
-    if (cliente == null) {
-      if (mounted) setState(() => _finalizando = false);
+    try {
+      await PedidoController.criarPedido(itens: List.of(widget.itens));
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      setState(() => _finalizando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(erro.mensagem)),
+      );
       return;
     }
 
-    await PedidoController.criarPedido(clienteId: cliente.id, itens: List.of(widget.itens));
     widget.onCompraFinalizada();
 
     if (!mounted) return;

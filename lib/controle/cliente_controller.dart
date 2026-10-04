@@ -1,94 +1,102 @@
+import '../modelo/api_service.dart';
 import '../modelo/classes/cliente.dart';
 import '../modelo/local_storage_service.dart';
-import 'pedido_controller.dart';
 
-/// CRUD de Cliente e controle de sessão (login/logout).
+/// Cadastro, login e conta do cliente. Tudo passa pela API do site;
+/// os métodos lançam [ApiException] com a mensagem pronta quando algo dá errado.
 class ClienteController {
   // Create
 
-  /// Retorna null se o e-mail já estiver cadastrado.
-  static Future<Cliente?> cadastrar({
+  static Future<Cliente> cadastrar({
     required String nome,
     required String email,
     required String senha,
     required String telefone,
     required String endereco,
   }) async {
-    List<Cliente> clientes = await LocalStorageService.carregarClientes();
-
-    final bool emailJaExiste =
-        clientes.any((c) => c.email.toLowerCase() == email.toLowerCase());
-    if (emailJaExiste) return null;
-
-    final int novoId = clientes.isEmpty
-        ? 1
-        : clientes.map((c) => c.id).reduce((a, b) => a > b ? a : b) + 1;
-
-    final novoCliente = Cliente(
-      id: novoId,
-      nome: nome,
-      email: email,
-      senha: senha,
-      telefone: telefone,
-      endereco: endereco,
-    );
-
-    clientes.add(novoCliente);
-    await LocalStorageService.salvarClientes(clientes);
-    return novoCliente;
+    final resposta = await ApiService.post('/register', corpo: {
+      'name': nome,
+      'email': email,
+      'password': senha,
+      'telefone': telefone,
+      'endereco': endereco,
+    });
+    return _guardarSessao(resposta);
   }
 
   // Read / Login
 
-  static Future<Cliente?> login(String email, String senha) async {
-    List<Cliente> clientes = await LocalStorageService.carregarClientes();
-
-    for (final cliente in clientes) {
-      if (cliente.email.toLowerCase() == email.toLowerCase() &&
-          cliente.senha == senha) {
-        await LocalStorageService.salvarSessao(cliente.id);
-        return cliente;
-      }
-    }
-    return null;
+  static Future<Cliente> login(String email, String senha) async {
+    final resposta = await ApiService.post('/login', corpo: {
+      'email': email,
+      'password': senha,
+    });
+    return _guardarSessao(resposta);
   }
 
+  /// Devolve o cliente logado, ou null se não houver login válido.
+  /// Sem internet, usa a cópia dos dados salva no aparelho.
   static Future<Cliente?> clienteLogado() async {
-    final int? id = await LocalStorageService.carregarSessao();
-    if (id == null) return null;
+    final String? token = await LocalStorageService.carregarToken();
+    if (token == null) return null;
 
-    List<Cliente> clientes = await LocalStorageService.carregarClientes();
-    for (final cliente in clientes) {
-      if (cliente.id == id) return cliente;
+    try {
+      final resposta = await ApiService.get('/me', autenticado: true);
+      final cliente = Cliente.fromMap(resposta);
+      await LocalStorageService.salvarCliente(cliente);
+      return cliente;
+    } on ApiException catch (erro) {
+      if (erro.statusCode == 401) {
+        // Token inválido ou expirado: precisa entrar de novo
+        await LocalStorageService.limparSessao();
+        return null;
+      }
+      return await LocalStorageService.carregarCliente();
     }
-    return null;
   }
 
   static Future<void> logout() async {
+    try {
+      await ApiService.post('/logout', autenticado: true);
+    } on ApiException {
+      // Mesmo que o servidor não responda, o logout local acontece
+    }
     await LocalStorageService.limparSessao();
   }
 
   // Update
 
-  static Future<void> atualizar(Cliente clienteAtualizado) async {
-    List<Cliente> clientes = await LocalStorageService.carregarClientes();
-
-    final int index = clientes.indexWhere((c) => c.id == clienteAtualizado.id);
-    if (index != -1) {
-      clientes[index] = clienteAtualizado;
-      await LocalStorageService.salvarClientes(clientes);
+  /// [novaSenha] é opcional: se vier vazia, a senha continua a mesma.
+  static Future<Cliente> atualizar(Cliente cliente, {String novaSenha = ''}) async {
+    final Map<String, dynamic> corpo = {
+      'name': cliente.nome,
+      'email': cliente.email,
+      'telefone': cliente.telefone,
+      'endereco': cliente.endereco,
+    };
+    if (novaSenha.isNotEmpty) {
+      corpo['password'] = novaSenha;
     }
+
+    final resposta = await ApiService.put('/me', corpo: corpo, autenticado: true);
+    final atualizado = Cliente.fromMap(resposta);
+    await LocalStorageService.salvarCliente(atualizado);
+    return atualizado;
   }
 
   // Delete
 
-  /// Exclui a conta, os pedidos do cliente e encerra a sessão.
-  static Future<void> excluirConta(int clienteId) async {
-    List<Cliente> clientes = await LocalStorageService.carregarClientes();
-    clientes.removeWhere((c) => c.id == clienteId);
-    await LocalStorageService.salvarClientes(clientes);
-
-    await PedidoController.excluirPedidosDoCliente(clienteId);
+  /// Exclui a conta (e os pedidos dela) no servidor e encerra a sessão.
+  static Future<void> excluirConta() async {
+    await ApiService.delete('/me', autenticado: true);
     await LocalStorageService.limparSessao();
+  }
+
+  /// Salva o token e os dados do cliente que a API devolveu no login/cadastro.
+  static Future<Cliente> _guardarSessao(dynamic resposta) async {
+    await LocalStorageService.salvarToken(resposta['token']);
+    final cliente = Cliente.fromMap(resposta['cliente']);
+    await LocalStorageService.salvarCliente(cliente);
+    return cliente;
   }
 }

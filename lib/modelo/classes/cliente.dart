@@ -1,11 +1,11 @@
 import 'dart:convert';
 
-/// Representa um cliente: dados de cadastro e login.
+/// Representa o cliente logado. A senha não fica no app:
+/// quem confere a senha é o servidor.
 class Cliente {
   final int id;
   final String nome;
   final String email;
-  final String senha;
   final String telefone;
   final String endereco;
 
@@ -13,7 +13,6 @@ class Cliente {
     required this.id,
     required this.nome,
     required this.email,
-    required this.senha,
     required this.telefone,
     required this.endereco,
   });
@@ -23,18 +22,18 @@ class Cliente {
       'id': id,
       'nome': nome,
       'email': email,
-      'senha': senha,
       'telefone': telefone,
       'endereco': endereco,
     };
   }
 
+  /// Serve tanto para a resposta da API quanto para a cópia salva no aparelho
+  /// (os dois usam os mesmos nomes de campo).
   factory Cliente.fromMap(Map<String, dynamic> map) {
     return Cliente(
       id: map['id'] ?? 0,
       nome: map['nome'] ?? '',
       email: map['email'] ?? '',
-      senha: map['senha'] ?? '',
       telefone: map['telefone'] ?? '',
       endereco: map['endereco'] ?? '',
     );

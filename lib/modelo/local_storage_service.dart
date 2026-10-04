@@ -1,32 +1,55 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'classes/cliente.dart';
+import 'classes/item_pedido.dart';
 import 'classes/produto.dart';
 import 'classes/pedido.dart';
 
-/// Persistência do app via shared_preferences (armazenamento interno
-/// do celular). Por isso o app funciona 100% offline.
+
 class LocalStorageService {
-  static const String _chaveClientes = 'lista_clientes';
-  static const String _chaveProdutos = 'lista_produtos';
-  static const String _chavePedidos = 'lista_pedidos';
-  static const String _chaveSessao = 'cliente_logado_id';
-  static const String _chaveProdutosSemente = 'produtos_semente_criada';
+  static const String _chaveToken = 'api_token';
+  static const String _chaveCliente = 'cliente_logado';
+  static const String _chaveProdutos = 'cache_produtos';
+  static const String _chavePedidos = 'cache_pedidos';
+  static const String _chaveFavoritos = 'produtos_favoritos';
+  static const String _chaveCarrinho = 'carrinho_itens';
 
-  // Clientes
+  // Token de login
 
-  static Future<void> salvarClientes(List<Cliente> lista) async {
+  static Future<void> salvarToken(String token) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_chaveClientes, Cliente.encode(lista));
+    await prefs.setString(_chaveToken, token);
   }
 
-  static Future<List<Cliente>> carregarClientes() async {
+  static Future<String?> carregarToken() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? json = prefs.getString(_chaveClientes);
-    if (json == null) return [];
-    return Cliente.decode(json);
+    return prefs.getString(_chaveToken);
   }
 
-  // Produtos
+  // Cliente logado (cópia dos dados do perfil)
+
+  static Future<void> salvarCliente(Cliente cliente) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_chaveCliente, json.encode(cliente.toMap()));
+  }
+
+  static Future<Cliente?> carregarCliente() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? texto = prefs.getString(_chaveCliente);
+    if (texto == null) return null;
+    return Cliente.fromMap(json.decode(texto));
+  }
+
+  /// Logout / conta excluída: apaga token, perfil e pedidos salvos no aparelho.
+  static Future<void> limparSessao() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_chaveToken);
+    await prefs.remove(_chaveCliente);
+    await prefs.remove(_chavePedidos);
+    await prefs.remove(_chaveCarrinho);
+  }
+
+  // Cópia dos produtos
 
   static Future<void> salvarProdutos(List<Produto> lista) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -35,30 +58,12 @@ class LocalStorageService {
 
   static Future<List<Produto>> carregarProdutos() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? json = prefs.getString(_chaveProdutos);
-    if (json == null) return [];
-    return Produto.decode(json);
+    final String? texto = prefs.getString(_chaveProdutos);
+    if (texto == null) return [];
+    return Produto.decode(texto);
   }
 
-  /// Cria produtos de exemplo na primeira execução, para facilitar testar o app.
-  static Future<void> criarProdutosDeExemploSeNecessario() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final bool jaCriou = prefs.getBool(_chaveProdutosSemente) ?? false;
-    if (jaCriou) return;
-
-    final produtosExemplo = [
-      Produto(id: 1, nome: 'Sofá 3 lugares', descricao: 'Tecido linho, confortável', preco: 1899.90),
-      Produto(id: 2, nome: 'Mesa de jantar', descricao: 'Madeira maciça, 6 lugares', preco: 1299.00),
-      Produto(id: 3, nome: 'Cadeira estofada', descricao: 'Base de madeira, tecido suede', preco: 249.90),
-      Produto(id: 4, nome: 'Guarda-roupa', descricao: '6 portas, espelho incluso', preco: 2199.00),
-      Produto(id: 5, nome: 'Rack para TV', descricao: 'Até 65", design moderno', preco: 599.90),
-    ];
-
-    await salvarProdutos(produtosExemplo);
-    await prefs.setBool(_chaveProdutosSemente, true);
-  }
-
-  // Pedidos
+  // Cópia dos pedidos
 
   static Future<void> salvarPedidos(List<Pedido> lista) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -67,25 +72,35 @@ class LocalStorageService {
 
   static Future<List<Pedido>> carregarPedidos() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? json = prefs.getString(_chavePedidos);
-    if (json == null) return [];
-    return Pedido.decode(json);
+    final String? texto = prefs.getString(_chavePedidos);
+    if (texto == null) return [];
+    return Pedido.decode(texto);
   }
 
-  // Sessão do cliente
+  // Carrinho (fica só no aparelho: o servidor só recebe quando a compra é finalizada)
 
-  static Future<void> salvarSessao(int clienteId) async {
+  static Future<void> salvarCarrinho(List<ItemPedido> itens) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_chaveSessao, clienteId);
+    await prefs.setString(_chaveCarrinho, ItemPedido.encode(itens));
   }
 
-  static Future<int?> carregarSessao() async {
+  static Future<List<ItemPedido>> carregarCarrinho() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_chaveSessao);
+    final String? texto = prefs.getString(_chaveCarrinho);
+    if (texto == null) return [];
+    return ItemPedido.decode(texto);
   }
 
-  static Future<void> limparSessao() async {
+  // Favoritos (só existem no aparelho, o site não tem favoritos)
+
+  static Future<void> salvarFavoritos(List<int> ids) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_chaveSessao);
+    await prefs.setStringList(_chaveFavoritos, ids.map((id) => id.toString()).toList());
+  }
+
+  static Future<List<int>> carregarFavoritos() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String> ids = prefs.getStringList(_chaveFavoritos) ?? [];
+    return ids.map((id) => int.tryParse(id) ?? 0).toList();
   }
 }

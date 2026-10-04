@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controle/cliente_controller.dart';
+import '../../modelo/api_service.dart';
 import '../../modelo/classes/cliente.dart';
 import '../cores_app.dart';
 import '../home_screen.dart';
@@ -32,7 +33,7 @@ class _CadastroClienteScreenState extends State<CadastroClienteScreen> {
     final c = widget.clienteParaEditar;
     _nomeController = TextEditingController(text: c?.nome ?? '');
     _emailController = TextEditingController(text: c?.email ?? '');
-    _senhaController = TextEditingController(text: c?.senha ?? '');
+    _senhaController = TextEditingController();
     _telefoneController = TextEditingController(text: c?.telefone ?? '');
     _enderecoController = TextEditingController(text: c?.endereco ?? '');
   }
@@ -51,43 +52,44 @@ class _CadastroClienteScreenState extends State<CadastroClienteScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _carregando = true);
 
-    if (widget.ehEdicao) {
-      final clienteAtualizado = Cliente(
-        id: widget.clienteParaEditar!.id,
+    try {
+      if (widget.ehEdicao) {
+        final clienteAtualizado = await ClienteController.atualizar(
+          Cliente(
+            id: widget.clienteParaEditar!.id,
+            nome: _nomeController.text.trim(),
+            email: _emailController.text.trim(),
+            telefone: _telefoneController.text.trim(),
+            endereco: _enderecoController.text.trim(),
+          ),
+          novaSenha: _senhaController.text,
+        );
+
+        if (!mounted) return;
+        setState(() => _carregando = false);
+        Navigator.pop(context, clienteAtualizado);
+        return;
+      }
+
+      // O cadastro já deixa o cliente logado (o servidor devolve o token)
+      await ClienteController.cadastrar(
         nome: _nomeController.text.trim(),
         email: _emailController.text.trim(),
         senha: _senhaController.text,
         telefone: _telefoneController.text.trim(),
         endereco: _enderecoController.text.trim(),
       );
-      await ClienteController.atualizar(clienteAtualizado);
-
+    } on ApiException catch (erro) {
       if (!mounted) return;
       setState(() => _carregando = false);
-      Navigator.pop(context, clienteAtualizado);
-      return;
-    }
-
-    final novoCliente = await ClienteController.cadastrar(
-      nome: _nomeController.text.trim(),
-      email: _emailController.text.trim(),
-      senha: _senhaController.text,
-      telefone: _telefoneController.text.trim(),
-      endereco: _enderecoController.text.trim(),
-    );
-
-    if (!mounted) return;
-    setState(() => _carregando = false);
-
-    if (novoCliente == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Já existe uma conta com esse e-mail.')),
+        SnackBar(content: Text(erro.mensagem)),
       );
       return;
     }
 
-    await ClienteController.login(novoCliente.email, novoCliente.senha);
     if (!mounted) return;
+    setState(() => _carregando = false);
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -119,8 +121,9 @@ class _CadastroClienteScreenState extends State<CadastroClienteScreen> {
               _campo('E-mail', _emailController,
                   obrigatorio: true, tipoTeclado: TextInputType.emailAddress, validarEmail: true),
               const SizedBox(height: 14),
-              _campo('Senha', _senhaController,
-                  obrigatorio: true, ocultar: true, tamanhoMinimo: 6),
+              _campo(widget.ehEdicao ? 'Nova senha (deixe vazio para manter)' : 'Senha',
+                  _senhaController,
+                  obrigatorio: !widget.ehEdicao, ocultar: true, tamanhoMinimo: 6),
               const SizedBox(height: 14),
               _campo('Telefone', _telefoneController, tipoTeclado: TextInputType.phone),
               const SizedBox(height: 14),

@@ -6,6 +6,7 @@ class Produto {
   final String nome;
   final String descricao;
   final double preco;
+  final String imagemUrl;
   final bool favorito;
 
   Produto({
@@ -13,20 +14,17 @@ class Produto {
     required this.nome,
     required this.descricao,
     required this.preco,
+    this.imagemUrl = '',
     this.favorito = false,
   });
 
-  Produto copiarCom({
-    String? nome,
-    String? descricao,
-    double? preco,
-    bool? favorito,
-  }) {
+  Produto copiarCom({bool? favorito}) {
     return Produto(
       id: id,
-      nome: nome ?? this.nome,
-      descricao: descricao ?? this.descricao,
-      preco: preco ?? this.preco,
+      nome: nome,
+      descricao: descricao,
+      preco: preco,
+      imagemUrl: imagemUrl,
       favorito: favorito ?? this.favorito,
     );
   }
@@ -37,17 +35,19 @@ class Produto {
       'nome': nome,
       'descricao': descricao,
       'preco': preco,
-      'favorito': favorito,
+      'imagem_url': imagemUrl,
     };
   }
 
+  /// Serve tanto para a resposta da API quanto para a cópia salva no aparelho.
+  /// O favorito não vem daqui: ele é guardado à parte no aparelho.
   factory Produto.fromMap(Map<String, dynamic> map) {
     return Produto(
       id: map['id'] ?? 0,
       nome: map['nome'] ?? '',
       descricao: map['descricao'] ?? '',
       preco: (map['preco'] ?? 0.0).toDouble(),
-      favorito: map['favorito'] ?? false,
+      imagemUrl: map['imagem_url'] ?? '',
     );
   }
 

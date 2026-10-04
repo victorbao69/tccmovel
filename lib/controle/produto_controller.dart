@@ -1,68 +1,49 @@
+import '../modelo/api_service.dart';
 import '../modelo/classes/produto.dart';
 import '../modelo/local_storage_service.dart';
 
-/// CRUD de Produto (catálogo de móveis).
+/// Catálogo de móveis. Os produtos vêm da API do site (cadastrados pelas
+/// empresas); o app só lista. Os favoritos ficam guardados no aparelho.
 class ProdutoController {
-  // Create
-
-  static Future<Produto> inserir({
-    required String nome,
-    required String descricao,
-    required double preco,
-  }) async {
-    List<Produto> lista = await LocalStorageService.carregarProdutos();
-
-    final int novoId = lista.isEmpty
-        ? 1
-        : lista.map((p) => p.id).reduce((a, b) => a > b ? a : b) + 1;
-
-    final novoProduto = Produto(
-      id: novoId,
-      nome: nome,
-      descricao: descricao,
-      preco: preco,
-    );
-
-    lista.add(novoProduto);
-    await LocalStorageService.salvarProdutos(lista);
-    return novoProduto;
-  }
-
   // Read
 
-  static Future<List<Produto>> listar() async {
-    return await LocalStorageService.carregarProdutos();
-  }
+  static Future<ResultadoLista<Produto>> listar() async {
+    final List<int> favoritos = await LocalStorageService.carregarFavoritos();
 
-  static Future<Produto?> buscarPorId(int id) async {
-    List<Produto> lista = await LocalStorageService.carregarProdutos();
-    for (final produto in lista) {
-      if (produto.id == id) return produto;
-    }
-    return null;
-  }
+    try {
+      final resposta = await ApiService.get('/produtos');
+      final List<Produto> produtos = (resposta as List<dynamic>)
+          .map<Produto>((item) => Produto.fromMap(item))
+          .toList();
 
-  // Update
+      // Guarda uma cópia para poder mostrar o catálogo sem internet
+      await LocalStorageService.salvarProdutos(produtos);
+      return ResultadoLista(_marcarFavoritos(produtos, favoritos));
+    } on ApiException catch (erro) {
+      if (!erro.semConexao) rethrow;
 
-  static Future<void> atualizar(Produto produtoAtualizado) async {
-    List<Produto> lista = await LocalStorageService.carregarProdutos();
-
-    final int index = lista.indexWhere((p) => p.id == produtoAtualizado.id);
-    if (index != -1) {
-      lista[index] = produtoAtualizado;
-      await LocalStorageService.salvarProdutos(lista);
+      final List<Produto> copia = await LocalStorageService.carregarProdutos();
+      return ResultadoLista(_marcarFavoritos(copia, favoritos), offline: true);
     }
   }
+
+  // Favoritos (só no aparelho)
 
   static Future<void> favoritar(Produto produto) async {
-    await atualizar(produto.copiarCom(favorito: !produto.favorito));
+    final List<int> favoritos = await LocalStorageService.carregarFavoritos();
+
+    if (favoritos.contains(produto.id)) {
+      favoritos.remove(produto.id);
+    } else {
+      favoritos.add(produto.id);
+    }
+
+    await LocalStorageService.salvarFavoritos(favoritos);
   }
 
-  // Delete
-
-  static Future<void> excluir(int id) async {
-    List<Produto> lista = await LocalStorageService.carregarProdutos();
-    lista.removeWhere((p) => p.id == id);
-    await LocalStorageService.salvarProdutos(lista);
+  static List<Produto> _marcarFavoritos(List<Produto> produtos, List<int> favoritos) {
+    return produtos
+        .map((p) => p.copiarCom(favorito: favoritos.contains(p.id)))
+        .toList();
   }
 }

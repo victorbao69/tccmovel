@@ -1,35 +1,44 @@
 # PlanHome Mobile
 
-App Flutter do TCC PlanHome — app único do cliente (a área de empresa
-foi removida). Funciona totalmente offline: tudo é salvo no
-armazenamento interno do aparelho com `shared_preferences`.
+App Flutter do TCC PlanHome — app do **cliente**. Agora ele conversa com a
+**API do site** (`tcc-web`, Laravel + Sanctum): login, cadastro, catálogo, pedidos e
+conta vêm do mesmo banco de dados do site.
 
-## Funcionalidades
+> Analogia: antes o app era um caderninho dentro do celular (só ele sabia o que
+> estava escrito). Agora ele é um balcão de atendimento ligado à loja: pergunta
+> ao site o que tem no estoque e manda os pedidos para lá. O caderninho ainda
+> existe, mas só como "cópia de segurança" para quando faltar internet.
 
-- **Login / Cadastro de cliente** (nome, e-mail, senha, telefone, endereço)
-- **Logout** e **exclusão da própria conta** (na aba Perfil)
-- **CRUD completo de Produtos** (catálogo): cadastrar, listar, editar,
-  favoritar e excluir — tudo pela aba Catálogo / tela de detalhes
-- **CRUD completo de Pedidos**: o carrinho vira um pedido ao finalizar a
-  compra; dá pra editar a quantidade de cada item do pedido depois, ou
-  excluir o pedido
-- **Funciona sem internet**: clientes, produtos e pedidos ficam salvos
-  no aparelho (SharedPreferences) e continuam lá mesmo fechando o app
-  ou sem conexão nenhuma
+## O que o app faz
 
-## O que foi corrigido nesta versão
+| Tela do app | Equivalente no site | Chamada da API |
+|---|---|---|
+| Login | Entrar | `POST /api/v1/login` |
+| Cadastro / editar perfil | Criar conta | `POST /api/v1/register`, `PUT /api/v1/me` |
+| Perfil (logout, excluir conta) | Sair | `POST /api/v1/logout`, `DELETE /api/v1/me` |
+| Catálogo + detalhes (com imagem) | Produtos | `GET /api/v1/produtos` |
+| Carrinho → Finalizar compra | Carrinho | `POST /api/v1/pedidos` |
+| Meus pedidos (cancelar pendente) | Meus Pedidos | `GET /api/v1/pedidos`, `DELETE /api/v1/pedidos/{id}` |
 
-- **Removida a área de empresa** (login separado, dashboard e conta de
-  teste `empresa@planhome.com`). O CRUD de produtos (criar/editar/excluir)
-  agora fica direto na aba Catálogo e na tela de detalhes do produto,
-  disponível para o próprio cliente.
-- **Corrigido o bug dos Pedidos que só apareciam depois de reiniciar o
-  app**: a tela de Pedidos ficava viva o tempo todo (por causa do
-  `IndexedStack` do `HomeScreen`), então ela só buscava os dados salvos
-  uma única vez, no `initState`. Depois de finalizar uma compra, a lista
-  não era atualizada até o app reiniciar. Agora o `HomeScreen` força a
-  tela de Pedidos a recarregar os dados: tanto ao finalizar uma compra
-  quanto toda vez que o usuário abre a aba Pedidos.
+- O carrinho continua só no app (como no site, que guarda o carrinho na sessão);
+  ele só vai para o servidor quando o cliente toca em **Finalizar compra**.
+- **Favoritos** ficam só no aparelho (o site não tem favoritos).
+- As telas de **empresa** não existem no app, então o app **não cadastra, edita
+  nem exclui produtos**: isso é feito pelas empresas no site (inclusive o envio
+  das imagens). O app só mostra o catálogo.
+- **Pedidos** funcionam como no site: cada unidade comprada vira um pedido com
+  status (pendente, pago, enviado, concluído). Só pedidos **pendentes** podem ser
+  cancelados.
+
+## Funciona sem internet?
+
+Parcialmente. Toda vez que o app consegue falar com o servidor, ele guarda uma
+cópia do catálogo, dos pedidos e do perfil no aparelho (`shared_preferences`).
+Sem internet:
+
+- você **vê** o catálogo, os pedidos e o perfil (aparece uma faixa avisando);
+- você **não consegue** logar pela primeira vez, cadastrar, finalizar compra
+  nem cancelar pedido (isso precisa do servidor) — o app mostra uma mensagem.
 
 ## Estrutura de pastas (padrão MVC)
 
@@ -42,8 +51,10 @@ lib/
       produto.dart
       pedido.dart
       item_pedido.dart
-    local_storage_service.dart   <- salva/lê tudo no armazenamento do aparelho
-  controle/                <- as regras de negócio (o "C" do CRUD)
+    config_api.dart            <- ENDEREÇO DA API (troque aqui se precisar)
+    api_service.dart           <- faz as chamadas HTTP e trata os erros
+    local_storage_service.dart <- token de login + cópia dos dados no aparelho
+  controle/                <- as regras (cada um chama a API)
     cliente_controller.dart
     produto_controller.dart
     pedido_controller.dart
@@ -58,7 +69,7 @@ lib/
     produto/
       catalogo_tab.dart
       produto_detalhes_screen.dart
-      produto_form_screen.dart
+      imagem_produto.dart
     carrinho/
       carrinho_tab.dart
     pedido/
@@ -66,40 +77,32 @@ lib/
       pedido_detalhes_screen.dart
 ```
 
-## Como rodar
+## Como rodar (passo a passo)
 
-1. Instale o [Flutter](https://docs.flutter.dev/get-started/install) (se ainda não tiver)
-2. Descompacte este projeto e abra a pasta no terminal
-3. Instale as dependências:
+1. Instale o [Flutter](https://docs.flutter.dev/get-started/install).
+2. **Deixe a API do site no ar** (veja o README do `tcc-web`, seção "API para o app mobile": é preciso rodar `php artisan install:api` e `php artisan migrate`).
+   Sem isso o app não consegue entrar nem listar produtos.
+3. Abra o arquivo `lib/modelo/config_api.dart` e confira o endereço:
+   - site publicado: `https://tcc-web.sao.dom.my.id/api/v1` (já vem assim)
+   - testando no PC com emulador Android: `http://10.0.2.2:8000/api/v1`
+     (`10.0.2.2` é como o emulador "enxerga" o seu computador; rode o site com
+     `php artisan serve`)
+   - testando no celular de verdade: `http://IP-DO-SEU-PC:8000/api/v1`
+     (celular e PC na mesma rede Wi-Fi; rode `php artisan serve --host=0.0.0.0`)
+4. No terminal, dentro da pasta do app:
    ```
    flutter pub get
-   ```
-4. Rode o app (com um emulador aberto ou celular conectado):
-   ```
    flutter run
    ```
+5. Na tela de login, toque em **"Não tem conta? Cadastre-se"** para criar uma
+   conta de cliente — ou entre com `cliente@email.com` / `123456` (conta criada
+   pelo seeder do site).
 
-## Primeiro uso
-
-Como não existe um usuário pré-cadastrado, na primeira vez abra o app e
-toque em **"Não tem conta? Cadastre-se"** na tela de login pra criar sua
-conta de cliente. O catálogo já vem com 5 produtos de exemplo pra
-facilitar os testes. Depois de logado, use o ícone **"+"** na aba
-Catálogo (ou o botão dentro da tela de detalhes de cada produto) para
-cadastrar, editar ou excluir produtos.
-
-## Como testar a funcionalidade offline
-
-1. Coloque o celular/emulador em **modo avião**
-2. Cadastre um cliente, um produto e finalize uma compra (gerando um pedido)
-3. Feche o app completamente e abra de novo, ainda em modo avião
-4. Os dados cadastrados continuam aparecendo normalmente — tudo é lido
-   direto do armazenamento interno do aparelho (`shared_preferences`),
-   sem nenhuma chamada de rede em nenhum lugar do app
+> Contas de **empresa** não entram no app (a API recusa): elas só usam o site.
+> O login devolve um token do Sanctum; o app o guarda no aparelho e o envia em cada
+> chamada protegida (`Authorization: Bearer <token>`).
 
 ## Observação sobre o modal antigo
 
-As telas de produto anteriormente abriam um `showModalBottomSheet` ao
-tocar em "Detalhes". Isso foi substituído por uma tela cheia
-(`ProdutoDetalhesScreen`), o que deixa mais fácil incluir os botões de
-editar/excluir/favoritar e mantém a navegação mais clara.
+As telas de produto abrem em tela cheia (`ProdutoDetalhesScreen`) em vez do
+`showModalBottomSheet` antigo.

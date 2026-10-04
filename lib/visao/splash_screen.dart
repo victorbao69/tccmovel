@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../controle/cliente_controller.dart';
-import '../modelo/local_storage_service.dart';
 import 'cliente/login_screen.dart';
 import 'cores_app.dart';
 import 'home_screen.dart';
@@ -20,8 +19,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _prepararEDecidirRota() async {
-    await LocalStorageService.criarProdutosDeExemploSeNecessario();
-
     // Pequena espera para a splash aparecer na tela.
     await Future.delayed(const Duration(milliseconds: 900));
 

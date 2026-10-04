@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controle/cliente_controller.dart';
+import '../../modelo/api_service.dart';
 import '../cores_app.dart';
 import '../home_screen.dart';
 import 'cadastro_cliente_screen.dart';
@@ -28,19 +29,21 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _carregando = true);
-    final cliente = await ClienteController.login(
-      _emailController.text.trim(),
-      _senhaController.text,
-    );
-    if (!mounted) return;
-    setState(() => _carregando = false);
-
-    if (cliente == null) {
+    try {
+      await ClienteController.login(
+        _emailController.text.trim(),
+        _senhaController.text,
+      );
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      setState(() => _carregando = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('E-mail ou senha inválidos.')),
+        SnackBar(content: Text(erro.mensagem)),
       );
       return;
     }
+    if (!mounted) return;
+    setState(() => _carregando = false);
 
     Navigator.pushReplacement(
       context,
