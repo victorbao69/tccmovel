@@ -73,6 +73,12 @@ class ApiService {
     http.Response resposta;
 
     try {
+
+  print('====================================');
+  print('API URL: $uri');
+  print('MÉTODO: $metodo');
+  print('CORPO: $corpoJson');
+
       switch (metodo) {
         case 'POST':
           resposta = await http.post(uri, headers: cabecalhos, body: corpoJson);
@@ -86,6 +92,11 @@ class ApiService {
         default:
           resposta = await http.get(uri, headers: cabecalhos);
       }
+
+  print('STATUS: ${resposta.statusCode}');
+  print('RESPOSTA: ${resposta.body}');
+  print('====================================');
+
     } on TimeoutException {
       throw ApiException('O servidor demorou demais para responder.', semConexao: true);
     } catch (_) {
