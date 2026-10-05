@@ -8,7 +8,7 @@ import 'imagem_produto.dart';
 import 'produto_detalhes_screen.dart';
 
 class CatalogoTab extends StatefulWidget {
-  final void Function(ItemPedido) onAdicionarAoCarrinho;
+  final Future<bool> Function(ItemPedido) onAdicionarAoCarrinho;
 
   const CatalogoTab({super.key, required this.onAdicionarAoCarrinho});
 
@@ -20,6 +20,7 @@ class _CatalogoTabState extends State<CatalogoTab> {
   List<Produto> _produtos = [];
   bool _carregando = true;
   bool _offline = false;
+  final TextEditingController _buscaController = TextEditingController();
 
   @override
   void initState() {
@@ -27,10 +28,16 @@ class _CatalogoTabState extends State<CatalogoTab> {
     _carregarProdutos();
   }
 
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
+  }
+
   Future<void> _carregarProdutos() async {
     setState(() => _carregando = true);
     try {
-      final resultado = await ProdutoController.listar();
+      final resultado = await ProdutoController.listar(busca: _buscaController.text.trim());
       if (!mounted) return;
       setState(() {
         _produtos = resultado.lista;
@@ -55,13 +62,13 @@ class _CatalogoTabState extends State<CatalogoTab> {
     );
 
     if (resultado is Map && resultado['adicionarAoCarrinho'] == true) {
-      widget.onAdicionarAoCarrinho(ItemPedido(
+      final adicionou = await widget.onAdicionarAoCarrinho(ItemPedido(
         produtoId: produto.id,
         nomeProduto: produto.nome,
         precoUnitario: produto.preco,
         quantidade: 1,
       ));
-      if (mounted) {
+      if (adicionou && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${produto.nome} adicionado ao carrinho!')),
         );
@@ -83,6 +90,32 @@ class _CatalogoTabState extends State<CatalogoTab> {
       body: Column(
         children: [
           if (_offline) const _AvisoOffline(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TextField(
+              controller: _buscaController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _carregarProdutos(),
+              decoration: InputDecoration(
+                hintText: 'Buscar produto...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _buscaController.clear();
+                    _carregarProdutos();
+                  },
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
           Expanded(child: _conteudo()),
         ],
       ),
@@ -99,7 +132,12 @@ class _CatalogoTabState extends State<CatalogoTab> {
                     children: [
                       const Icon(Icons.inventory_2_outlined, size: 48, color: corCinzaBorda),
                       const SizedBox(height: 12),
-                      const Text('Nenhum produto disponível no momento', style: TextStyle(color: corCinzaTexto)),
+                      Text(
+                        _buscaController.text.trim().isEmpty
+                            ? 'Nenhum produto disponível no momento'
+                            : 'Nenhum produto encontrado',
+                        style: const TextStyle(color: corCinzaTexto),
+                      ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _carregarProdutos,
@@ -125,13 +163,14 @@ class _CatalogoTabState extends State<CatalogoTab> {
                       return _CartaoProduto(
                         produto: produto,
                         onDetalhes: () => _abrirDetalhes(produto),
-                        onAdicionar: () {
-                          widget.onAdicionarAoCarrinho(ItemPedido(
+                        onAdicionar: () async {
+                          final adicionou = await widget.onAdicionarAoCarrinho(ItemPedido(
                             produtoId: produto.id,
                             nomeProduto: produto.nome,
                             precoUnitario: produto.preco,
                             quantidade: 1,
                           ));
+                          if (!adicionou || !mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('${produto.nome} adicionado!'),

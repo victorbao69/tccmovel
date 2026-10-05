@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../controle/pedido_controller.dart';
+import '../../controle/carrinho_controller.dart';
 import '../../modelo/api_service.dart';
 import '../../modelo/classes/item_pedido.dart';
 import '../cores_app.dart';
@@ -31,7 +31,7 @@ class _CarrinhoTabState extends State<CarrinhoTab> {
     setState(() => _finalizando = true);
 
     try {
-      await PedidoController.criarPedido(itens: List.of(widget.itens));
+      await CarrinhoController.finalizar();
     } on ApiException catch (erro) {
       if (!mounted) return;
       setState(() => _finalizando = false);
@@ -77,7 +77,7 @@ class _CarrinhoTabState extends State<CarrinhoTab> {
                 : ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: widget.itens.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, i) {
                       final item = widget.itens[i];
                       return Container(

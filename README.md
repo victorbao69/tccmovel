@@ -16,12 +16,16 @@ conta vêm do mesmo banco de dados do site.
 | Login | Entrar | `POST /api/v1/login` |
 | Cadastro / editar perfil | Criar conta | `POST /api/v1/register`, `PUT /api/v1/me` |
 | Perfil (logout, excluir conta) | Sair | `POST /api/v1/logout`, `DELETE /api/v1/me` |
-| Catálogo + detalhes (com imagem) | Produtos | `GET /api/v1/produtos` |
-| Carrinho → Finalizar compra | Carrinho | `POST /api/v1/pedidos` |
+| Catálogo + busca + detalhes (com imagem) | Produtos | `GET /api/v1/produtos` (e `?busca=`) |
+| Carrinho (colocar, trocar quantidade, tirar) | Carrinho | `GET/POST /api/v1/carrinho`, `PUT/DELETE /api/v1/carrinho/{produto}` |
+| Finalizar compra | Finalizar | `POST /api/v1/carrinho/finalizar` |
 | Meus pedidos (cancelar pendente) | Meus Pedidos | `GET /api/v1/pedidos`, `DELETE /api/v1/pedidos/{id}` |
 
-- O carrinho continua só no app (como no site, que guarda o carrinho na sessão);
-  ele só vai para o servidor quando o cliente toca em **Finalizar compra**.
+- O carrinho fica **no servidor** (tabela `carrinho_item`): o cliente vê o mesmo carrinho em qualquer
+  aparelho e ele não se perde se o app for fechado. No aparelho fica só uma cópia para mostrar o
+  carrinho sem internet. **Finalizar compra** transforma o carrinho em pedidos (um por unidade, como no site)
+  e o esvazia. O carrinho do **site** usa a mesma tabela: o que você coloca num aparece no outro (mesma conta).
+- A busca do catálogo usa `GET /produtos?busca=...` (digite e confirme no teclado).
 - **Favoritos** ficam só no aparelho (o site não tem favoritos).
 - As telas de **empresa** não existem no app, então o app **não cadastra, edita
   nem exclui produtos**: isso é feito pelas empresas no site (inclusive o envio
@@ -57,6 +61,7 @@ lib/
   controle/                <- as regras (cada um chama a API)
     cliente_controller.dart
     produto_controller.dart
+    carrinho_controller.dart
     pedido_controller.dart
   visao/                   <- as telas, agrupadas por assunto
     splash_screen.dart

@@ -170,7 +170,7 @@ class _PerfilTabState extends State<PerfilTab> {
         label: Text(texto, style: TextStyle(fontSize: 14, color: perigo ? Colors.red : corTextoEscuro)),
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 13),
-          side: BorderSide(color: perigo ? Colors.red.withOpacity(0.4) : corCinzaBorda),
+          side: BorderSide(color: perigo ? Colors.red.withValues(alpha: 0.4) : corCinzaBorda),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),

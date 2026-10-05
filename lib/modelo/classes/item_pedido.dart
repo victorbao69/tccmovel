@@ -44,6 +44,17 @@ class ItemPedido {
     );
   }
 
+  /// Lê o item como a API do carrinho envia:
+  /// {produto_id, nome, preco_unitario, quantidade, subtotal, imagem_url}
+  factory ItemPedido.fromCarrinhoApi(Map<String, dynamic> map) {
+    return ItemPedido(
+      produtoId: map['produto_id'] ?? 0,
+      nomeProduto: map['nome'] ?? '',
+      precoUnitario: (map['preco_unitario'] ?? 0.0).toDouble(),
+      quantidade: map['quantidade'] ?? 1,
+    );
+  }
+
   static String encode(List<ItemPedido> itens) => json.encode(
         itens.map<Map<String, dynamic>>((i) => i.toMap()).toList(),
       );

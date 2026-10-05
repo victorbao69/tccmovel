@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../modelo/classes/item_pedido.dart';
-import '../modelo/local_storage_service.dart';
+import '../controle/carrinho_controller.dart';
+import '../modelo/api_service.dart';
 import 'carrinho/carrinho_tab.dart';
 import 'cliente/perfil_tab.dart';
 import 'cores_app.dart';
@@ -8,9 +9,9 @@ import 'pedido/pedidos_tab.dart';
 import 'produto/catalogo_tab.dart';
 
 /// Tela principal após o login: bottom navigation trocando entre as
-/// 4 abas. O carrinho fica guardado aqui, pois é compartilhado entre a
-/// aba de Catálogo e a de Carrinho. A cada mudança ele também é salvo no
-/// aparelho, para não se perder quando o app for fechado.
+/// 4 abas. A lista do carrinho fica aqui, pois é compartilhada entre a aba
+/// de Catálogo e a de Carrinho. Quem guarda o carrinho de verdade é o servidor
+/// (API): cada mudança é enviada para lá e depois a lista é recarregada.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -33,61 +34,70 @@ class _HomeScreenState extends State<HomeScreen> {
     _carregarCarrinho();
   }
 
-  // Ao abrir o app, recupera o carrinho que ficou salvo no aparelho
-  Future<void> _carregarCarrinho() async {
-    final salvo = await LocalStorageService.carregarCarrinho();
+  void _avisar(String mensagem) {
     if (!mounted) return;
-    setState(() {
-      _carrinho
-        ..clear()
-        ..addAll(salvo);
-    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensagem)),
+    );
   }
 
-  void _salvarCarrinho() {
-    LocalStorageService.salvarCarrinho(_carrinho);
+  // Busca o carrinho do cliente na API
+  Future<void> _carregarCarrinho() async {
+    try {
+      final resultado = await CarrinhoController.listar();
+      if (!mounted) return;
+      setState(() {
+        _carrinho
+          ..clear()
+          ..addAll(resultado.lista);
+      });
+    } on ApiException catch (erro) {
+      _avisar(erro.mensagem);
+    }
   }
 
-  void _adicionarAoCarrinho(ItemPedido novoItem) {
-    setState(() {
-      final indexExistente =
-      _carrinho.indexWhere((i) => i.produtoId == novoItem.produtoId);
-      if (indexExistente != -1) {
-        final atual = _carrinho[indexExistente];
-        _carrinho[indexExistente] =
-            atual.copiarComQuantidade(atual.quantidade + novoItem.quantidade);
-      } else {
-        _carrinho.add(novoItem);
-      }
-    });
-    _salvarCarrinho();
+  // Devolve true se o servidor aceitou (o catálogo usa isso para avisar o cliente)
+  Future<bool> _adicionarAoCarrinho(ItemPedido novoItem) async {
+    try {
+      await CarrinhoController.adicionar(novoItem.produtoId, novoItem.quantidade);
+    } on ApiException catch (erro) {
+      _avisar(erro.mensagem);
+      return false;
+    }
+    await _carregarCarrinho();
+    return true;
   }
 
-  void _removerDoCarrinho(int produtoId) {
-    setState(() => _carrinho.removeWhere((i) => i.produtoId == produtoId));
-    _salvarCarrinho();
+  Future<void> _removerDoCarrinho(int produtoId) async {
+    try {
+      await CarrinhoController.remover(produtoId);
+    } on ApiException catch (erro) {
+      _avisar(erro.mensagem);
+      return;
+    }
+    await _carregarCarrinho();
   }
 
-  void _alterarQuantidadeCarrinho(int produtoId, int novaQuantidade) {
-    setState(() {
+  Future<void> _alterarQuantidadeCarrinho(int produtoId, int novaQuantidade) async {
+    try {
       if (novaQuantidade <= 0) {
-        _carrinho.removeWhere((i) => i.produtoId == produtoId);
-        return;
+        await CarrinhoController.remover(produtoId);
+      } else {
+        await CarrinhoController.alterarQuantidade(produtoId, novaQuantidade);
       }
-      final index = _carrinho.indexWhere((i) => i.produtoId == produtoId);
-      if (index != -1) {
-        _carrinho[index] = _carrinho[index].copiarComQuantidade(novaQuantidade);
-      }
-    });
-    _salvarCarrinho();
+    } on ApiException catch (erro) {
+      _avisar(erro.mensagem);
+      return;
+    }
+    await _carregarCarrinho();
   }
 
+  // Chamado depois que o servidor já transformou o carrinho em pedidos
   void _limparCarrinho() {
     setState(() {
       _carrinho.clear();
       _versaoPedidos++;
     });
-    _salvarCarrinho();
   }
 
   @override
@@ -109,10 +119,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: IndexedStack(index: _abaAtual, children: abas),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _abaAtual,
-        onDestinationSelected: (index) => setState(() {
-          _abaAtual = index;
-          if (index == 2) _versaoPedidos++;
-        }),
+        onDestinationSelected: (index) {
+          setState(() {
+            _abaAtual = index;
+            if (index == 2) _versaoPedidos++;
+          });
+          // Ao abrir o carrinho, busca de novo: ele pode ter mudado pelo site
+          if (index == 1) _carregarCarrinho();
+        },
         backgroundColor: Colors.white,
         indicatorColor: corBegeClaro,
         destinations: [

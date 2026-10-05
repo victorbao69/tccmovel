@@ -96,7 +96,7 @@ class _PedidosTabState extends State<PedidosTab> {
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: _pedidos.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, i) {
                       final pedido = _pedidos[i];
                       return InkWell(

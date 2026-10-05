@@ -5,7 +5,9 @@ import 'classes/item_pedido.dart';
 import 'classes/produto.dart';
 import 'classes/pedido.dart';
 
-
+/// Guarda no aparelho (shared_preferences) o que o app precisa lembrar:
+/// o token de login e uma cópia das últimas listas vindas da API.
+/// Essa cópia é o que permite abrir o app e ver os dados sem internet.
 class LocalStorageService {
   static const String _chaveToken = 'api_token';
   static const String _chaveCliente = 'cliente_logado';

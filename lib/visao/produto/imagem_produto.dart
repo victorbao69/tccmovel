@@ -21,7 +21,7 @@ class ImagemProduto extends StatelessWidget {
             : Image.network(
                 url,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _icone(),
+                errorBuilder: (_, _, _) => _icone(),
               ),
       ),
     );
