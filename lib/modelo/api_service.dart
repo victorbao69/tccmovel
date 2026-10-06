@@ -55,10 +55,13 @@ class ApiService {
   }) async {
     final Uri uri = Uri.parse('$apiBaseUrl$caminho');
 
-    // "Accept: application/json" faz o Laravel responder erros em JSON
+    // "Accept: application/json" faz o Laravel responder erros em JSON.
+    // "Referer": o servidor (DOM Cloud) bloqueia pedidos que não dizem de
+    // qual site vieram; sem isso o nginx responde 405 antes de chegar no Laravel.
     final Map<String, String> cabecalhos = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
+      'Referer': 'https://tcc-web.sao.dom.my.id/',
     };
 
     if (autenticado) {
